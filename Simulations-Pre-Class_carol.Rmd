@@ -112,19 +112,13 @@ mc_picks<-function(hands, bets, seed=1, choices=c(48,48)){
   samples2=sapply(1:bets, function(i) sapply(1:hands, function(x) sample(c(rep(1, samples[i,x]), rep(0, hands-samples[i,x])), size=1)))
   mean(apply(samples2, 2, sum))
 }
-mc_picks(100,100,10)
-#not a fair game
+mc_picks(100,100,100)
+#not exactly a fair game
 ```
     
     b. Repeat this process but change the starting probability to a new value within 2% either way. Get the expected return after 100 repetitions. Keep exploring until you have a return value that is as fair as you can make it. Can you do this automatically?
 ```{r}
-
-mc_picks<-function(hands, bets, seed, choices){
-  samples<-prob_table(hands, bets, seed, choices)
-  samples2=sapply(1:bets, function(i) sapply(1:hands, function(x) sample(c(rep(1, samples[i,x]), rep(0, hands-samples[i,x])), size=1)))
-  return(mean(apply(samples2, 2, sum)))
-}
-mc_picks(100,100, 100, c(48,52))
+mc_picks(100,100, 101, c(49,51))
 ```
     
     c. Repeat again, keeping the initial probability at 48%, but this time change the probability increment to a value different from 1%. Get the expected return after 100 repetitions. Keep changing this value until you have a return value that is as fair as you can make it. 
