@@ -1,0 +1,159 @@
+---
+title: "Simulations Pre-Class Project"
+date: "Due March 13, 2017 at 5:00pm"
+output:
+  html_document
+
+
+---
+
+<style type="text/css">
+.table {
+
+    width: 80%;
+    margin-left:10%; 
+    margin-right:10%;
+}
+</style>
+```{r,setup, echo=FALSE, cache=TRUE}
+## numbers >= 10^5 will be denoted in scientific notation,
+## and rounded to 2 digits
+options(scipen = 3, digits = 3)
+```
+
+
+
+
+#Project Goals:
+
+
+With this project we will simulate a famoues probability problem. This will not require knowledge of probability or statistics but only the logic to follow the steps in order to simulate this problem. This is one way to solve problems by using the computer. 
+
+ 1. **Gambler's Ruin**: Suppose you have a bankroll of $1000 and make bets of $100 on a fair game. By simulating the outcome directly for at most 5000 iterations of the game (or hands), estimate:
+    a. the probability that you have "busted" (lost all your money) by the time you have placed your one hundredth bet. 
+```{r}
+library(purrr)
+sim_samples<-function(hands, bets, seed=1){
+  set.seed(seed)
+  samples=sapply(1:hands, function(x) sample(c(0,1),bets, replace=T))
+  return(samples)
+}
+
+fair_game<-function(hands, bets, seed=1){
+  samples<-sim_samples(hands, bets , seed)
+  keep=data.frame(sums=apply(samples, 2, sum))
+  end_hands=length(keep[keep[,1]<=(bets/2)-5,])
+  return(end_hands/hands)
+}
+fair_game(5000,100)
+```
+    b. the probability that you have busted by the time you have placed your five hundredth bet by simulating the outcome directly. 
+```{r}
+fair_game(5000,500)
+```
+    c. the mean time you go bust, given that you go bust within the first 5000 hands.
+```{r}
+time_bust<-function(hands, bets, seed=1){
+  step=0
+  samples<-sim_samples(hands, bets , seed)
+  lowerbound=suppressWarnings(sapply(1:hands, function(x) min(which(cumsum(samples[,x])==(bets/2)-5))))
+  upperbound=suppressWarnings(sapply(1:hands, function(x) max(which(cumsum(samples[,x])==(bets/2)-5))))
+  ref_bounds=cbind(lowerbound, upperbound)
+  bounds=ref_bounds
+  bounds[!is.finite(bounds[,2]),1]=bets
+  bounds=bounds[bounds[,2]==bets|bounds[,1]==100,1]
+  steps=sum(bounds)
+  total_steps=(length(bounds)*bets)
+  result=steps/total_steps*bets
+  return(result)
+}
+time_bust(100,100)
+```
+    d. the mean and variance of your bankroll after 100 hands (including busts).
+```{r}
+library(dplyr)
+bankroll<-function(hands, bets, seed=1){
+  samples<-sim_samples(hands, bets , seed)
+  wins=apply(samples,2,sum)
+  loss=bets-wins
+  df=data.frame(matrix(c(wins,loss), ncol=2))
+  df %>% mutate(winnings=((100*X1)-(100*X2)+1000)) %>% summarise(m_winnings=mean(winnings), 
+                                                                 var_winnings=var(winnings))
+}
+bankroll(100,100)
+```
+    
+    e. the mean and variance of your bankroll after 500 hands (including busts).
+```{r}
+bankroll(500,100)
+```
+ 
+Note: you *must* stop playing if your player has gone bust. How will you handle this in the `for` loop?
+
+2. **Markov Chains**. Suppose you have a game where the probability of winning on your first hand is 48%; each time you win, that probability goes up by one percentage point for the next game (to a maximum of 100%, where it must stay), and each time you lose, it goes back down to 48%. Assume you cannot go bust and that the size of your wager is a constant $100.
+    a. Is this a fair game? Simulate one hundred thousand sequential hands to determine the size of your return. Then repeat this simulation 99 more times to get a range of values to calculate the expectation.
+```{r}
+prob_table<-function(hands, bets, seed, choices=c(48,48)){
+  samples<-sim_samples(hands, bets , seed)
+  samples[samples==0]<-48
+  samples[1,]=sample(choices, size=hands, replace=T)
+  for(n in 1:hands){
+    for(i in 2:(bets-1)){
+      if(samples[i,n]==1 & samples[i-1,n]>=48){
+        samples[i,n]=samples[i,n]+samples[i-1,n]
+      }
+    }
+  }
+  samples
+}  
+
+mc_picks<-function(hands, bets, seed){
+  samples<-prob_table(hands, bets, seed)
+  samples2=sapply(1:bets, function(i) sapply(1:hands, function(x) sample(c(rep(1, samples[i,x]), rep(0, 100-samples[i,x])), size=1)))
+  mean(apply(samples2, 2, sum))
+}
+mc_picks(100,100,1)
+#not a fair game
+```
+    
+    b. Repeat this process but change the starting probability to a new value within 2% either way. Get the expected return after 100 repetitions. Keep exploring until you have a return value that is as fair as you can make it. Can you do this automatically?
+```{r}
+prob_table<-function(hands, bets, seed, choices=c(48,48)){
+  samples<-sim_samples(hands, bets , seed)
+  samples[samples==0]<-sample(choices, size=length(samples[samples==0]), replace=T)
+  samples[1,]=sample(choices, size=hands, replace=T)
+  for(n in 1:hands){
+    for(i in 2:(bets-1)){
+      if(samples[i,n]==1 & samples[i-1,n]>=48){
+        samples[i,n]=samples[i,n]+samples[i-1,n]
+      }
+    }
+  }
+  samples
+}  
+mc_picks<-function(hands, bets, seed, choices){
+  samples<-prob_table(hands, bets, seed, choices)
+  samples2=sapply(1:bets, function(i) sapply(1:hands, function(x) sample(c(rep(1, samples[i,x]), rep(0, hands-samples[i,x])), size=1)))
+  return(mean(apply(samples2, 2, sum)))
+}
+mc_picks(100,100, 2, c(48,52))
+```
+    
+    c. Repeat again, keeping the initial probability at 48%, but this time change the probability increment to a value different from 1%. Get the expected return after 100 repetitions. Keep changing this value until you have a return value that is as fair as you can make it. 
+```{r}
+prob_table2<-function(hands, bets, seed, choices=c(48,48)){
+  samples<-sim_samples(hands, bets , seed)
+  zeros=length(samples[samples==0])
+  samples[samples==0]<-sample(choices, size=zeros, replace=T)
+  samples[samples==1]<-sample(100, size=(hands*bets)-zeros, replace=T)
+  samples[1,]=sample(choices, size=hands, replace=T)
+  samples
+}  
+mc_picks<-function(hands, bets, seed, choices){
+  samples<-prob_table2(hands, bets, seed, choices)
+  samples2=sapply(1:bets, function(i) sapply(1:hands, function(x) sample(c(rep(1, samples[i,x]), rep(0, hands-samples[i,x])), size=1)))
+  return(mean(apply(samples2, 2, sum)))
+}
+mc_picks(100,100, 2, c(48,48))
+
+```
