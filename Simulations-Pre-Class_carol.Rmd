@@ -93,7 +93,7 @@ Note: you *must* stop playing if your player has gone bust. How will you handle 
 2. **Markov Chains**. Suppose you have a game where the probability of winning on your first hand is 48%; each time you win, that probability goes up by one percentage point for the next game (to a maximum of 100%, where it must stay), and each time you lose, it goes back down to 48%. Assume you cannot go bust and that the size of your wager is a constant $100.
     a. Is this a fair game? Simulate one hundred thousand sequential hands to determine the size of your return. Then repeat this simulation 99 more times to get a range of values to calculate the expectation.
 ```{r}
-prob_table<-function(hands, bets, seed, choices=c(48,48)){
+prob_table<-function(hands, bets, seed=1, choices=c(48,48)){
   samples<-sim_samples(hands, bets , seed)
   samples[samples==0]<-48
   samples[1,]=sample(choices, size=hands, replace=T)
@@ -107,36 +107,24 @@ prob_table<-function(hands, bets, seed, choices=c(48,48)){
   samples
 }  
 
-mc_picks<-function(hands, bets, seed){
-  samples<-prob_table(hands, bets, seed)
-  samples2=sapply(1:bets, function(i) sapply(1:hands, function(x) sample(c(rep(1, samples[i,x]), rep(0, 100-samples[i,x])), size=1)))
+mc_picks<-function(hands, bets, seed=1, choices=c(48,48)){
+  samples<-prob_table(hands, bets, seed, choices)
+  samples2=sapply(1:bets, function(i) sapply(1:hands, function(x) sample(c(rep(1, samples[i,x]), rep(0, hands-samples[i,x])), size=1)))
   mean(apply(samples2, 2, sum))
 }
-mc_picks(100,100,1)
+mc_picks(100,100,10)
 #not a fair game
 ```
     
     b. Repeat this process but change the starting probability to a new value within 2% either way. Get the expected return after 100 repetitions. Keep exploring until you have a return value that is as fair as you can make it. Can you do this automatically?
 ```{r}
-prob_table<-function(hands, bets, seed, choices=c(48,48)){
-  samples<-sim_samples(hands, bets , seed)
-  samples[samples==0]<-sample(choices, size=length(samples[samples==0]), replace=T)
-  samples[1,]=sample(choices, size=hands, replace=T)
-  for(n in 1:hands){
-    for(i in 2:(bets-1)){
-      if(samples[i,n]==1 & samples[i-1,n]>=48){
-        samples[i,n]=samples[i,n]+samples[i-1,n]
-      }
-    }
-  }
-  samples
-}  
+
 mc_picks<-function(hands, bets, seed, choices){
   samples<-prob_table(hands, bets, seed, choices)
   samples2=sapply(1:bets, function(i) sapply(1:hands, function(x) sample(c(rep(1, samples[i,x]), rep(0, hands-samples[i,x])), size=1)))
   return(mean(apply(samples2, 2, sum)))
 }
-mc_picks(100,100, 2, c(48,52))
+mc_picks(100,100, 100, c(48,52))
 ```
     
     c. Repeat again, keeping the initial probability at 48%, but this time change the probability increment to a value different from 1%. Get the expected return after 100 repetitions. Keep changing this value until you have a return value that is as fair as you can make it. 
